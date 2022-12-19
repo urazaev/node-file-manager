@@ -1,35 +1,52 @@
-import process from 'node:process';
-import {homedir} from 'os'
+// import process from 'process';
+import process from 'process';
 
+import os from 'os'
+import * as readline from "readline/promises";
+import {determinateCommand, echoInitialMessage} from "./lib/input.js";
 
-const CMD_REGEX = /^([^ ]+)(\s+(([^ "]+)|"([^"]+)"))?(\s+(([^ "]+)|"([^"]+)"))?/;
-const argv = process.argv;
 const userName = process.argv?.find((arg) => (arg.startsWith('--username')))?.slice(11)
-  || 'Unknown user'
-let currentPath = homedir();
+  || 'Unknown user';
+
+process.stdout.write(`Welcome to the File Manager, ${userName}!${os.EOL}`);
+
+let currentPath = os.homedir();
+process.chdir(currentPath);
+echoInitialMessage(currentPath);
+
+const cl = readline.createInterface(
+  {
+    input: process.stdin,
+    output: process.stdout
+  }
+)
+
+cl.on('line', async (lineCmd) => {
+  if (lineCmd) {
+    const lineArgs = lineCmd?.trim().match(/"(.*?)"(?: |$)|[^ ]+/g);
+    const [cmd, ...args] = lineArgs;
 
 
-const pathEcho = (info) => {
-  return console.log("You are currently in ", info);
-}
+    if (lineCmd === '.exit') {
+      cl.close();
+      return;
+    }
 
-process.on('exit', () => console.log(`Thank you for using File Manager, ${userName}, goodbye!`))
+    try {
+      const exec = determinateCommand(cmd, args);
+      await exec(args);
+    } catch (err) {
+      process.stdout.write(`${err.message}${os.EOL}`);
+    }
 
-console.log(`Welcome to the File Manager, ${userName}!`);
+  }
+  echoInitialMessage(process.cwd())
+  cl.prompt();
+});
 
-
-const inputsEcho = (cmd) => {
-  const cmdStringify = cmd.toString();
-  if (cmdStringify.includes('.exit')) process.exit(0);
-
-  operation(cmdStringify).finally(() =>
-    pathEcho(currentPath))
-}
-
-await process.stdin.on("data", inputsEcho);
-
-const operation = async (cmd) => {
-  const cmdArray = cmd.trim().match(CMD_REGEX)
-
-  console.log(cmdArray)
-}
+cl.on('close', () => {
+  process.stdout.write(
+    `Thank you for using File Manager, ${userName}, goodbye!${os.EOL}`
+  )
+  process.exit()
+})
